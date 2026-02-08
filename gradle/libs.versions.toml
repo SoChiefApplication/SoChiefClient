@@ -15,8 +15,11 @@ junit = "4.13.2"
 kotlin = "2.3.10"
 kotlinx-coroutines = "1.10.2"
 material3 = "1.10.0-alpha05"
+contracts = "0.1.2"
 
 [libraries]
+contracts = { module = "com.vlegall:contracts", version.ref = "contracts" }
+contracts-desktop = { module = "com.vlegall:contracts-desktop", version.ref = "contracts" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 junit = { module = "junit:junit", version.ref = "junit" }

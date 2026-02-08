@@ -25,6 +25,10 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
+        maven {
+            name = "gitea"
+            url = uri("https://git.lan/api/packages/leva/maven")
+        }
     }
 }
 
@@ -33,4 +37,3 @@ plugins {
 }
 
 include(":composeApp")
-include(":contracts")
