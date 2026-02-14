@@ -1,9 +1,9 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-val versionName = providers.gradleProperty("VERSION_NAME").get()
-val versionCode = providers.gradleProperty("VERSION_CODE").get().toInt()
-val desktopPackageVersion = providers.gradleProperty("DESKTOP_PACKAGE_VERSION").get()
+val versionNameProp: String? = providers.gradleProperty("VERSION_NAME").get()
+val versionCodeProp: Int = providers.gradleProperty("VERSION_CODE").get().toInt()
+val desktopPackageVersionProp: String? = providers.gradleProperty("DESKTOP_PACKAGE_VERSION").get()
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -65,8 +65,8 @@ android {
         applicationId = "fr.vlegall.client"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = versionCode
-        versionName = versionName
+        versionCode = versionCodeProp
+        versionName = versionNameProp
     }
 
     // ✅ IMPORTANT : aide IntelliJ/AGP à reconnaître les dossiers KMP comme des sources Android "main"
@@ -106,12 +106,12 @@ compose.desktop {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "fr.vlegall.sochief"
             // ✅ version globale pour desktop
-            packageVersion = desktopPackageVersion
+            packageVersion = desktopPackageVersionProp
 
             // ✅ au cas où, force macOS explicitement
             macOS {
-                packageVersion = desktopPackageVersion
-                dmgPackageVersion = desktopPackageVersion
+                packageVersion = desktopPackageVersionProp
+                dmgPackageVersion = desktopPackageVersionProp
             }
         }
     }
