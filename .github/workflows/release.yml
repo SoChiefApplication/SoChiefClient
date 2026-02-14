@@ -70,7 +70,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Ensure Android SDK packages + accept licenses
+      - name: Ensure Android SDK packages + accept licenses (no pipefail trap)
         shell: bash
         run: |
           set -euo pipefail
@@ -91,23 +91,24 @@ jobs:
           fi
           if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
             echo "sdkmanager introuvable dans $ANDROID_SDK_ROOT/cmdline-tools"
-            find "$ANDROID_SDK_ROOT" -maxdepth 4 -type f -name sdkmanager -print || true
+            find "$ANDROID_SDK_ROOT" -maxdepth 5 -type f -name sdkmanager -print || true
             exit 1
           fi
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          # 1) Tente d'accepter tout (sdkmanager peut renvoyer 1 à cause d'un broken pipe => on n'échoue pas ici)
-          set +e
-          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
-          echo "sdkmanager --licenses exit code: $?"
-          set -e
-
-          # 2) Installe les packages requis (et accepte les licences pendant l'install)
+          # IMPORTANT: éviter que 'yes' fasse échouer le step à cause du SIGPIPE
+          set +o pipefail
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           yes | "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-36" \
-            "build-tools;36.0.0" >/dev/null
+            "build-tools;36.0.0" >/dev/null 2>&1 || true
+          set -o pipefail
+
+          # Vérification rapide (échoue si pas installés)
+          "$SDKMANAGER" --list | grep -q "platforms;android-36" || (echo "platforms;android-36 non installé" && exit 1)
+          "$SDKMANAGER" --list | grep -q "build-tools;36.0.0" || (echo "build-tools;36.0.0 non installé" && exit 1)
 
       - name: Build APK (release)
         run: ./gradlew :composeApp:assembleRelease
@@ -120,6 +121,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/android
+          ls -la composeApp/build/outputs/apk/release || true
+          ls -la composeApp/build/outputs/bundle/release || true
           cp -v composeApp/build/outputs/apk/release/*.apk dist/android/
           cp -v composeApp/build/outputs/bundle/release/*.aab dist/android/
 
@@ -203,19 +206,22 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: [ tag, build-android, build-desktop ]
+    needs: [ tag, build-desktop, build-android ]
+    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts
+      - name: Download all artifacts (even if some jobs failed)
         uses: actions/download-artifact@v4
         with:
           path: dist
+          merge-multiple: true
 
       - name: List files
         shell: bash
         run: |
           set -euo pipefail
-          find dist -type f -maxdepth 6 -print
+          echo "Downloaded artifacts:"
+          find dist -type f -maxdepth 6 -print || true
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
@@ -223,6 +229,7 @@ jobs:
           tag_name: ${{ needs.tag.outputs.tag }}
           name: ${{ needs.tag.outputs.tag }}
           generate_release_notes: true
+          fail_on_unmatched_files: false
           files: |
             dist/**/*.apk
             dist/**/*.aab

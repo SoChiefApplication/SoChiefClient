@@ -2,6 +2,7 @@ import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 val versionName = providers.gradleProperty("VERSION_NAME").get()
+val versionCode = providers.gradleProperty("VERSION_CODE").get().toInt()
 val desktopPackageVersion = providers.gradleProperty("DESKTOP_PACKAGE_VERSION").get()
 
 plugins {
