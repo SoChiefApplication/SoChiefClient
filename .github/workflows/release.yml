@@ -12,16 +12,14 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  tag:
-    name: Create tag from VERSION_NAME
+  meta:
+    name: Resolve version from gradle.properties
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
       version: ${{ steps.ver.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Read VERSION_NAME
         id: ver
@@ -36,23 +34,9 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Create tag if missing
-        shell: bash
-        run: |
-          set -euo pipefail
-          TAG="${{ steps.ver.outputs.tag }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
-
   build-android:
     name: Build Android (APK + AAB)
-    needs: tag
+    needs: meta
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +54,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Ensure Android SDK packages + accept licenses (no pipefail trap)
+      - name: Ensure Android SDK packages + accept licenses (robust)
         shell: bash
         run: |
           set -euo pipefail
@@ -90,14 +74,14 @@ jobs:
             SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1 || true)"
           fi
           if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
-            echo "sdkmanager introuvable dans $ANDROID_SDK_ROOT/cmdline-tools"
+            echo "sdkmanager introuvable"
             find "$ANDROID_SDK_ROOT" -maxdepth 5 -type f -name sdkmanager -print || true
             exit 1
           fi
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          # IMPORTANT: éviter que 'yes' fasse échouer le step à cause du SIGPIPE
+          # Evite que 'yes' fasse échouer le step (SIGPIPE) avec pipefail
           set +o pipefail
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           yes | "$SDKMANAGER" \
@@ -106,7 +90,6 @@ jobs:
             "build-tools;36.0.0" >/dev/null 2>&1 || true
           set -o pipefail
 
-          # Vérification rapide (échoue si pas installés)
           "$SDKMANAGER" --list | grep -q "platforms;android-36" || (echo "platforms;android-36 non installé" && exit 1)
           "$SDKMANAGER" --list | grep -q "build-tools;36.0.0" || (echo "build-tools;36.0.0 non installé" && exit 1)
 
@@ -121,21 +104,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/android
-          ls -la composeApp/build/outputs/apk/release || true
-          ls -la composeApp/build/outputs/bundle/release || true
           cp -v composeApp/build/outputs/apk/release/*.apk dist/android/
           cp -v composeApp/build/outputs/bundle/release/*.aab dist/android/
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-${{ needs.tag.outputs.tag }}
+          name: android-${{ needs.meta.outputs.tag }}
           path: dist/android/*
           if-no-files-found: error
 
   build-desktop:
     name: Build Desktop (${{ matrix.label }})
-    needs: tag
+    needs: meta
     strategy:
       fail-fast: false
       matrix:
@@ -189,7 +170,6 @@ jobs:
           files=( ${{ matrix.out_glob }} )
           if [ ${#files[@]} -eq 0 ]; then
             echo "Aucun fichier trouvé pour: ${{ matrix.out_glob }}"
-            echo "Contenu de composeApp/build/compose/binaries :"
             ls -R composeApp/build/compose/binaries || true
             exit 1
           fi
@@ -200,17 +180,17 @@ jobs:
       - name: Upload Desktop artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-${{ matrix.label }}-${{ needs.tag.outputs.tag }}
+          name: desktop-${{ matrix.label }}-${{ needs.meta.outputs.tag }}
           path: dist/desktop/*
           if-no-files-found: error
 
   release:
-    name: Create GitHub Release
-    needs: [ tag, build-desktop, build-android ]
+    name: Create/Update GitHub Release (creates tag server-side)
+    needs: [ meta, build-desktop, build-android ]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Download all artifacts (even if some jobs failed)
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
@@ -220,14 +200,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Downloaded artifacts:"
+          echo "Artifacts:"
           find dist -type f -maxdepth 6 -print || true
 
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.tag.outputs.tag }}
-          name: ${{ needs.tag.outputs.tag }}
+          tag_name: ${{ needs.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.meta.outputs.tag }}
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: |
