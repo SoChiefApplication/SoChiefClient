@@ -18,7 +18,6 @@ jobs:
     outputs:
       tag: ${{ steps.ver.outputs.tag }}
       version: ${{ steps.ver.outputs.version }}
-      created: ${{ steps.tag.outputs.created }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -38,21 +37,18 @@ jobs:
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Create tag if missing
-        id: tag
         shell: bash
         run: |
           set -euo pipefail
           TAG="${{ steps.ver.outputs.tag }}"
           if git rev-parse "$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG already exists"
-            echo "created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-          echo "created=true" >> "$GITHUB_OUTPUT"
 
   build-android:
     name: Build Android (APK + AAB)
@@ -60,6 +56,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Make Gradle wrapper executable
+        shell: bash
+        run: chmod +x gradlew
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -70,44 +70,44 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # ✅ Pas d'action tierce : on utilise l'Android SDK déjà présent sur ubuntu-latest
-      - name: Ensure Android SDK packages
+      - name: Ensure Android SDK packages + accept licenses
         shell: bash
         run: |
           set -euo pipefail
 
-          # Variables (selon l'image runner)
           export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
-          if [ -z "$ANDROID_SDK_ROOT" ]; then
+          if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
             echo "ANDROID_SDK_ROOT/ANDROID_HOME introuvable sur le runner."
             env | sort
             exit 1
           fi
 
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
           echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
 
-          # Trouve sdkmanager
           SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
           if [ ! -x "$SDKMANAGER" ]; then
             SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1 || true)"
           fi
           if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
             echo "sdkmanager introuvable dans $ANDROID_SDK_ROOT/cmdline-tools"
-            find "$ANDROID_SDK_ROOT" -maxdepth 3 -type f -name sdkmanager -print || true
+            find "$ANDROID_SDK_ROOT" -maxdepth 4 -type f -name sdkmanager -print || true
             exit 1
           fi
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          yes | "$SDKMANAGER" --licenses
+          # 1) Tente d'accepter tout (sdkmanager peut renvoyer 1 à cause d'un broken pipe => on n'échoue pas ici)
+          set +e
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1
+          echo "sdkmanager --licenses exit code: $?"
+          set -e
 
-          # Adapte si tu changes compileSdk/buildTools
-          "$SDKMANAGER" \
+          # 2) Installe les packages requis (et accepte les licences pendant l'install)
+          yes | "$SDKMANAGER" \
             "platform-tools" \
             "platforms;android-36" \
-            "build-tools;36.0.0"
+            "build-tools;36.0.0" >/dev/null
 
       - name: Build APK (release)
         run: ./gradlew :composeApp:assembleRelease
@@ -139,19 +139,24 @@ jobs:
         include:
           - os: ubuntu-latest
             label: linux
-            task: :composeApp:packageDeb
+            task_unix: :composeApp:packageDeb
             out_glob: "composeApp/build/compose/binaries/main/deb/*.deb"
-          - os: windows-latest
-            label: windows
-            task: :composeApp:packageMsi
-            out_glob: "composeApp/build/compose/binaries/main/msi/*.msi"
           - os: macos-latest
             label: macos
-            task: :composeApp:packageDmg
+            task_unix: :composeApp:packageDmg
             out_glob: "composeApp/build/compose/binaries/main/dmg/*.dmg"
+          - os: windows-latest
+            label: windows
+            task_win: :composeApp:packageMsi
+            out_glob: "composeApp/build/compose/binaries/main/msi/*.msi"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Make Gradle wrapper executable (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: chmod +x gradlew
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -162,9 +167,15 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build installer
+      - name: Build installer (Linux/macOS)
+        if: runner.os != 'Windows'
         shell: bash
-        run: ./gradlew ${{ matrix.task }}
+        run: ./gradlew ${{ matrix.task_unix }}
+
+      - name: Build installer (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .\gradlew.bat ${{ matrix.task_win }}
 
       - name: Collect Desktop outputs
         shell: bash
