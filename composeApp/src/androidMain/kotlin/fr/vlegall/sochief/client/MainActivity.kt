@@ -1,4 +1,4 @@
-package com.vlegall.sochiefapp
+package fr.vlegall.sochief.client
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

@@ -25,10 +25,6 @@ dependencyResolutionManagement {
             }
         }
         mavenCentral()
-        maven {
-            name = "gitea"
-            url = uri("https://git.lan/api/packages/leva/maven")
-        }
     }
 }
 

@@ -1,0 +1,220 @@
+name: Release (Android + Desktop)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Create tag from VERSION_NAME
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.ver.outputs.tag }}
+      version: ${{ steps.ver.outputs.version }}
+      created: ${{ steps.tag.outputs.created }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read VERSION_NAME
+        id: ver
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(grep -E '^VERSION_NAME=' gradle.properties | cut -d'=' -f2- | tr -d '\r' | xargs || true)"
+          if [ -z "${VERSION:-}" ]; then
+            echo "VERSION_NAME est vide. Ajoute VERSION_NAME=MAJOR.MINOR.PATCH dans gradle.properties."
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Create tag if missing
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.ver.outputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  build-android:
+    name: Build Android (APK + AAB)
+    needs: tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # ✅ Pas d'action tierce : on utilise l'Android SDK déjà présent sur ubuntu-latest
+      - name: Ensure Android SDK packages
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Variables (selon l'image runner)
+          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          if [ -z "$ANDROID_SDK_ROOT" ]; then
+            echo "ANDROID_SDK_ROOT/ANDROID_HOME introuvable sur le runner."
+            env | sort
+            exit 1
+          fi
+
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+
+          # Trouve sdkmanager
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1 || true)"
+          fi
+          if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
+            echo "sdkmanager introuvable dans $ANDROID_SDK_ROOT/cmdline-tools"
+            find "$ANDROID_SDK_ROOT" -maxdepth 3 -type f -name sdkmanager -print || true
+            exit 1
+          fi
+
+          echo "Using sdkmanager: $SDKMANAGER"
+
+          yes | "$SDKMANAGER" --licenses
+
+          # Adapte si tu changes compileSdk/buildTools
+          "$SDKMANAGER" \
+            "platform-tools" \
+            "platforms;android-36" \
+            "build-tools;36.0.0"
+
+      - name: Build APK (release)
+        run: ./gradlew :composeApp:assembleRelease
+
+      - name: Build AAB (release)
+        run: ./gradlew :composeApp:bundleRelease
+
+      - name: Collect Android outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/android
+          cp -v composeApp/build/outputs/apk/release/*.apk dist/android/
+          cp -v composeApp/build/outputs/bundle/release/*.aab dist/android/
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ needs.tag.outputs.tag }}
+          path: dist/android/*
+          if-no-files-found: error
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.label }})
+    needs: tag
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux
+            task: :composeApp:packageDeb
+            out_glob: "composeApp/build/compose/binaries/main/deb/*.deb"
+          - os: windows-latest
+            label: windows
+            task: :composeApp:packageMsi
+            out_glob: "composeApp/build/compose/binaries/main/msi/*.msi"
+          - os: macos-latest
+            label: macos
+            task: :composeApp:packageDmg
+            out_glob: "composeApp/build/compose/binaries/main/dmg/*.dmg"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build installer
+        shell: bash
+        run: ./gradlew ${{ matrix.task }}
+
+      - name: Collect Desktop outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/desktop
+          shopt -s nullglob
+          files=( ${{ matrix.out_glob }} )
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "Aucun fichier trouvé pour: ${{ matrix.out_glob }}"
+            echo "Contenu de composeApp/build/compose/binaries :"
+            ls -R composeApp/build/compose/binaries || true
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            cp -v "$f" "dist/desktop/"
+          done
+
+      - name: Upload Desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.label }}-${{ needs.tag.outputs.tag }}
+          path: dist/desktop/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [ tag, build-android, build-desktop ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find dist -type f -maxdepth 6 -print
+
+      - name: Create release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.tag.outputs.tag }}
+          name: ${{ needs.tag.outputs.tag }}
+          generate_release_notes: true
+          files: |
+            dist/**/*.apk
+            dist/**/*.aab
+            dist/**/*.deb
+            dist/**/*.msi
+            dist/**/*.dmg

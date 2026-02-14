@@ -1,4 +1,4 @@
-package com.vlegall.sochiefapp
+package fr.vlegall.sochief.client
 
 interface Platform {
     val name: String

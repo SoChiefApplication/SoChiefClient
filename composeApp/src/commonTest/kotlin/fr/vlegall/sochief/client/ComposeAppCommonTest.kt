@@ -1,4 +1,4 @@
-package com.vlegall.sochiefapp
+package fr.vlegall.sochief.client
 
 import kotlin.test.Test
 import kotlin.test.assertEquals

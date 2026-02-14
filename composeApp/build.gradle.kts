@@ -1,27 +1,32 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+val versionName = providers.gradleProperty("VERSION_NAME").get()
+val desktopPackageVersion = providers.gradleProperty("DESKTOP_PACKAGE_VERSION").get()
+
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeHotReload)
+    alias(libs.plugins.kotlinSerialization)
 }
 
 kotlin {
     androidTarget {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_11)
-        }
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
 
-    jvm()
+    jvm {
+        compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
+    }
 
     sourceSets {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.ktor.client.okhttp)
         }
         commonMain.dependencies {
             implementation(libs.contracts)
@@ -33,6 +38,12 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.cio)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+            implementation(libs.kotlinx.serialization.json)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -40,36 +51,47 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.client.cio)
         }
     }
 }
 
 android {
-    namespace = "com.vlegall.sochiefapp"
+    namespace = "fr.vlegall.sochief.client"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.vlegall.sochiefapp"
+        applicationId = "fr.vlegall.client"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = versionCode
+        versionName = versionName
     }
+
+    // ✅ IMPORTANT : aide IntelliJ/AGP à reconnaître les dossiers KMP comme des sources Android "main"
+    sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
+    sourceSets["main"].res.srcDirs("src/androidMain/res")
+    sourceSets["main"].java.srcDirs("src/androidMain/kotlin")
+
+    // optionnel mais souvent utile si tu as des resources communes
+    // sourceSets["main"].resources.srcDirs("src/commonMain/resources")
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
     buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-        }
+        getByName("release") { isMinifyEnabled = false }
     }
+
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
+
 
 dependencies {
     debugImplementation(libs.compose.uiTooling)
@@ -77,12 +99,19 @@ dependencies {
 
 compose.desktop {
     application {
-        mainClass = "com.vlegall.sochiefapp.MainKt"
+        mainClass = "fr.vlegall.sochief.client.MainKt"
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "com.vlegall.sochiefapp"
-            packageVersion = "1.0.0"
+            packageName = "fr.vlegall.sochief"
+            // ✅ version globale pour desktop
+            packageVersion = desktopPackageVersion
+
+            // ✅ au cas où, force macOS explicitement
+            macOS {
+                packageVersion = desktopPackageVersion
+                dmgPackageVersion = desktopPackageVersion
+            }
         }
     }
 }
