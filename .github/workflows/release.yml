@@ -59,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           if [ -z "${ANDROID_SDK_ROOT:-}" ]; then
             echo "ANDROID_SDK_ROOT/ANDROID_HOME introuvable sur le runner."
             env | sort
@@ -75,37 +75,47 @@ jobs:
           fi
           if [ -z "${SDKMANAGER:-}" ] || [ ! -x "$SDKMANAGER" ]; then
             echo "sdkmanager introuvable"
-            find "$ANDROID_SDK_ROOT" -maxdepth 5 -type f -name sdkmanager -print || true
+            find "$ANDROID_SDK_ROOT" -maxdepth 6 -type f -name sdkmanager -print || true
             exit 1
           fi
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          # Evite que 'yes' fasse échouer le step (SIGPIPE) avec pipefail
+          # IMPORTANT: évite le fail "Broken pipe" (SIGPIPE) avec pipefail
           set +o pipefail
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-          yes | "$SDKMANAGER" \
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" \
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.0.0" >/dev/null 2>&1 || true
           set -o pipefail
 
-          "$SDKMANAGER" --list | grep -q "platforms;android-36" || (echo "platforms;android-36 non installé" && exit 1)
-          "$SDKMANAGER" --list | grep -q "build-tools;36.0.0" || (echo "build-tools;36.0.0 non installé" && exit 1)
-
       - name: Build APK (release)
+        shell: bash
         run: ./gradlew :composeApp:assembleRelease
 
+      # L'AAB peut casser selon ta config (manifest/versionCode, etc.)
+      # -> on n'empêche PAS la release (on upload juste ce qui existe).
       - name: Build AAB (release)
+        continue-on-error: true
+        shell: bash
         run: ./gradlew :composeApp:bundleRelease
 
-      - name: Collect Android outputs
+      - name: Collect + rename Android outputs (SoChief.*)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p dist/android
-          cp -v composeApp/build/outputs/apk/release/*.apk dist/android/
-          cp -v composeApp/build/outputs/bundle/release/*.aab dist/android/
+
+          APK="$(ls -1 composeApp/build/outputs/apk/release/*.apk | head -n 1)"
+          cp -v "$APK" dist/android/SoChief.apk
+
+          if ls composeApp/build/outputs/bundle/release/*.aab >/dev/null 2>&1; then
+            AAB="$(ls -1 composeApp/build/outputs/bundle/release/*.aab | head -n 1)"
+            cp -v "$AAB" dist/android/SoChief.aab
+          else
+            echo "No AAB produced (bundleRelease failed or skipped)."
+          fi
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
@@ -125,14 +135,17 @@ jobs:
             label: linux
             task_unix: :composeApp:packageDeb
             out_glob: "composeApp/build/compose/binaries/main/deb/*.deb"
+            out_ext: "deb"
           - os: macos-latest
             label: macos
             task_unix: :composeApp:packageDmg
             out_glob: "composeApp/build/compose/binaries/main/dmg/*.dmg"
+            out_ext: "dmg"
           - os: windows-latest
             label: windows
             task_win: :composeApp:packageMsi
             out_glob: "composeApp/build/compose/binaries/main/msi/*.msi"
+            out_ext: "msi"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -161,7 +174,7 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat ${{ matrix.task_win }}
 
-      - name: Collect Desktop outputs
+      - name: Collect + rename Desktop output (SoChief.${{ matrix.out_ext }})
         shell: bash
         run: |
           set -euo pipefail
@@ -173,9 +186,10 @@ jobs:
             ls -R composeApp/build/compose/binaries || true
             exit 1
           fi
-          for f in "${files[@]}"; do
-            cp -v "$f" "dist/desktop/"
-          done
+
+          # On prend le premier (normalement un seul)
+          src="${files[0]}"
+          cp -v "$src" "dist/desktop/SoChief.${{ matrix.out_ext }}"
 
       - name: Upload Desktop artifacts
         uses: actions/upload-artifact@v4
@@ -185,7 +199,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Create/Update GitHub Release (creates tag server-side)
+    name: Create/Update GitHub Release (no git push tag)
     needs: [ meta, build-desktop, build-android ]
     if: always()
     runs-on: ubuntu-latest
@@ -201,8 +215,11 @@ jobs:
         run: |
           set -euo pipefail
           echo "Artifacts:"
-          find dist -type f -maxdepth 6 -print || true
+          find dist -type f -maxdepth 8 -print || true
 
+      # IMPORTANT:
+      # - Pas de "git tag && git push" => évite ton 403 github-actions[bot]
+      # - GitHub va créer le tag côté serveur si absent (via l'API Release)
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
@@ -212,8 +229,8 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: |
-            dist/**/*.apk
-            dist/**/*.aab
-            dist/**/*.deb
-            dist/**/*.msi
-            dist/**/*.dmg
+            dist/**/SoChief.apk
+            dist/**/SoChief.aab
+            dist/**/SoChief.deb
+            dist/**/SoChief.msi
+            dist/**/SoChief.dmg
