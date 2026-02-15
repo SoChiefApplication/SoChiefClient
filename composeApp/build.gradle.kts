@@ -14,6 +14,12 @@ plugins {
     alias(libs.plugins.kotlinSerialization)
 }
 
+compose {
+    resources {
+        publicResClass = true
+    }
+}
+
 kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -143,8 +149,19 @@ compose.desktop {
             packageVersion = desktopPackageVersionProp
 
             macOS {
+                iconFile.set(project.file("icons/app.icns"))
                 packageVersion = desktopPackageVersionProp
                 dmgPackageVersion = desktopPackageVersionProp
+            }
+
+            linux {
+                iconFile.set(project.file("icons/app.png"))
+            }
+
+            windows {
+                iconFile.set(project.file("icons/app.ico"))
+                shortcut = true          // crée raccourci
+                menuGroup = "SoChief"    // dossier menu démarrer
             }
         }
     }
