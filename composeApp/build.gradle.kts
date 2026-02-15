@@ -149,17 +149,17 @@ compose.desktop {
             packageVersion = desktopPackageVersionProp
 
             macOS {
-                iconFile.set(project.file("icons/app.icns"))
+                iconFile.set(rootProject.file("icons/app.icns"))
                 packageVersion = desktopPackageVersionProp
                 dmgPackageVersion = desktopPackageVersionProp
             }
 
             linux {
-                iconFile.set(project.file("icons/app.png"))
+                iconFile.set(rootProject.file("icons/app.png"))
             }
 
             windows {
-                iconFile.set(project.file("icons/app.ico"))
+                iconFile.set(rootProject.file("icons/app.ico"))
                 shortcut = true          // crée raccourci
                 menuGroup = "SoChief"    // dossier menu démarrer
             }
