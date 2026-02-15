@@ -91,6 +91,41 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    signingConfigs {
+        create("release") {
+            // On lit depuis variables d'environnement (CI) OU gradle.properties (local)
+            val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
+                ?: (findProperty("ANDROID_KEYSTORE_PATH") as String?)
+            val ksPass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                ?: (findProperty("ANDROID_KEYSTORE_PASSWORD") as String?)
+            val keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                ?: (findProperty("ANDROID_KEY_ALIAS") as String?)
+            val keyPass = System.getenv("ANDROID_KEY_PASSWORD")
+                ?: (findProperty("ANDROID_KEY_PASSWORD") as String?)
+
+            if (!ksPath.isNullOrBlank()) storeFile = file(ksPath)
+            if (!ksPass.isNullOrBlank()) storePassword = ksPass
+            if (!keyAlias.isNullOrBlank()) this.keyAlias = keyAlias
+            if (!keyPass.isNullOrBlank()) keyPassword = keyPass
+
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
+    val hasKeystore = !(
+            (System.getenv("ANDROID_KEYSTORE_PATH") ?: (findProperty("ANDROID_KEYSTORE_PATH") as String?))
+            ).isNullOrBlank()
+
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (hasKeystore) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
+    }
 }
 
 

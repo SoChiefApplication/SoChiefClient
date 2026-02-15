@@ -90,6 +90,17 @@ jobs:
             "build-tools;36.0.0" >/dev/null 2>&1 || true
           set -o pipefail
 
+      - name: Decode Android keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${{ secrets.ANDROID_KEYSTORE_B64 }}" || (echo "ANDROID_KEYSTORE_B64 missing" && exit 1)
+          echo "${{ secrets.ANDROID_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/sochief-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/sochief-release.jks" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}" >> "$GITHUB_ENV"
+
       - name: Build APK (release)
         shell: bash
         run: ./gradlew :composeApp:assembleRelease

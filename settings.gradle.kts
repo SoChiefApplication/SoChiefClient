@@ -1,4 +1,4 @@
-rootProject.name = "sochiefapp"
+rootProject.name = "SoChief"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {
