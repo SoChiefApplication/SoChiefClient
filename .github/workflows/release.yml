@@ -182,55 +182,56 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat ${{ matrix.task_win }}
 
-      - name: Patch .deb desktop file (single entry handled by postinst)
+      - name: Patch .deb desktop file (keep original Icon=..., fix WMClass, no duplicate entry)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-
+          
           DEB="$(ls -1 composeApp/build/compose/binaries/main/deb/*.deb | head -n 1)"
           echo "Deb found: $DEB"
-
+          
           WORKDIR="$(mktemp -d)"
           dpkg-deb -R "$DEB" "$WORKDIR"
-
-          # 1) Prefer the exact path used by Compose default packaging for packageName=sochief
+          
+          # Prefer exact path used by Compose for packageName=sochief (as seen in your postinst error)
           DESKTOP="$WORKDIR/opt/sochief/lib/sochief-SoChief.desktop"
           if [ ! -f "$DESKTOP" ]; then
             echo "Expected desktop not found at $DESKTOP, searching..."
             DESKTOP="$(find "$WORKDIR" -path "*/opt/*/lib/*.desktop" | head -n 1 || true)"
           fi
-
+          
           if [ -z "${DESKTOP:-}" ] || [ ! -f "$DESKTOP" ]; then
             echo "No .desktop found under /opt/*/lib in deb"
             find "$WORKDIR" -maxdepth 10 -type f -name "*.desktop" -print || true
             exit 1
           fi
-
+          
           echo "Desktop file to patch: $DESKTOP"
           echo "Before:"
           cat "$DESKTOP" || true
-
-          APP_NAME="SoChief"
-          APP_ICON="sochief"
+          
           WMCLASS="fr-vlegall-sochief-client-MainKt"
-
-          set_kv() {
-            local key="$1" value="$2" file="$3"
-            if grep -qE "^${key}=" "$file"; then
-              sed -i "s|^${key}=.*|${key}=${value}|" "$file"
-            else
-              printf "\n%s=%s\n" "$key" "$value" >> "$file"
-            fi
-          }
-
-          set_kv "Name" "$APP_NAME" "$DESKTOP"
-          set_kv "Icon" "$APP_ICON" "$DESKTOP"
-          set_kv "StartupWMClass" "$WMCLASS" "$DESKTOP"
-
+          APP_NAME="SoChief"
+          
+          # Patch StartupWMClass (dock GNOME)
+          if grep -q '^StartupWMClass=' "$DESKTOP"; then
+            sed -i "s/^StartupWMClass=.*/StartupWMClass=$WMCLASS/" "$DESKTOP"
+          else
+            printf "\nStartupWMClass=%s\n" "$WMCLASS" >> "$DESKTOP"
+          fi
+          
+          # Optional: force Name=SoChief, but keep all localized Name[xx] as-is
+          if grep -q '^Name=' "$DESKTOP"; then
+            sed -i "s/^Name=.*/Name=$APP_NAME/" "$DESKTOP"
+          else
+            printf "\nName=%s\n" "$APP_NAME" >> "$DESKTOP"
+          fi
+          
+          # IMPORTANT: do NOT touch Icon= (keep original, since it worked)
           echo "After:"
           cat "$DESKTOP"
-
+          
           dpkg-deb -b "$WORKDIR" "$DEB"
           rm -rf "$WORKDIR"
 
