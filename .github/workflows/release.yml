@@ -182,8 +182,7 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat ${{ matrix.task_win }}
 
-      # ✅ Linux only: make sure there is ONLY ONE desktop entry, named SoChief, with correct icon + WMClass
-      - name: Patch .deb desktop entry (single app, correct name + icon + StartupWMClass)
+      - name: Patch .deb desktop file (single entry handled by postinst)
         if: runner.os == 'Linux'
         shell: bash
         run: |
@@ -195,47 +194,27 @@ jobs:
           WORKDIR="$(mktemp -d)"
           dpkg-deb -R "$DEB" "$WORKDIR"
 
-          # Find any .desktop in the package (compose can put it under /opt/.../lib or elsewhere)
-          mapfile -t DESKTOPS < <(find "$WORKDIR" -type f -name "*.desktop" -print || true)
-          if [ "${#DESKTOPS[@]}" -eq 0 ]; then
-            echo "No .desktop found inside the deb"
-            find "$WORKDIR" -maxdepth 8 -type f -print | head -n 200 || true
+          # 1) Prefer the exact path used by Compose default packaging for packageName=sochief
+          DESKTOP="$WORKDIR/opt/sochief/lib/sochief-SoChief.desktop"
+          if [ ! -f "$DESKTOP" ]; then
+            echo "Expected desktop not found at $DESKTOP, searching..."
+            DESKTOP="$(find "$WORKDIR" -path "*/opt/*/lib/*.desktop" | head -n 1 || true)"
+          fi
+
+          if [ -z "${DESKTOP:-}" ] || [ ! -f "$DESKTOP" ]; then
+            echo "No .desktop found under /opt/*/lib in deb"
+            find "$WORKDIR" -maxdepth 10 -type f -name "*.desktop" -print || true
             exit 1
           fi
 
-          echo "Desktop files found:"
-          printf '%s\n' "${DESKTOPS[@]}"
+          echo "Desktop file to patch: $DESKTOP"
+          echo "Before:"
+          cat "$DESKTOP" || true
 
-          # Pick the canonical one (prefer /usr/share/applications if it already exists, else any)
-          CANONICAL=""
-          for f in "${DESKTOPS[@]}"; do
-            if [[ "$f" == *"/usr/share/applications/"* ]]; then
-              CANONICAL="$f"
-              break
-            fi
-          done
-          if [ -z "$CANONICAL" ]; then
-            CANONICAL="${DESKTOPS[0]}"
-          fi
-          echo "Canonical desktop: $CANONICAL"
-
-          # Ensure standard location exists and copy canonical there
-          mkdir -p "$WORKDIR/usr/share/applications"
-          TARGET="$WORKDIR/usr/share/applications/sochief.desktop"
-          cp -f "$CANONICAL" "$TARGET"
-
-          # Delete ALL other desktop entries in the package to avoid duplicate apps
-          find "$WORKDIR" -type f -name "*.desktop" ! -path "$TARGET" -delete
-
-          # Patch fields: Name, Icon, StartupWMClass
-          # - Name shows as the app label
-          # - Icon should match the icon name installed by Compose (often same as packageName or app name)
-          #   If you already configured linux.iconFile in Gradle, Icon=<appId> is usually correct.
           APP_NAME="SoChief"
-          APP_ICON="sochief"   # <= must match the icon name installed (usually without extension)
+          APP_ICON="sochief"
           WMCLASS="fr-vlegall-sochief-client-MainKt"
 
-          # Helper: set or replace key=value in [Desktop Entry]
           set_kv() {
             local key="$1" value="$2" file="$3"
             if grep -qE "^${key}=" "$file"; then
@@ -245,15 +224,13 @@ jobs:
             fi
           }
 
-          # Some desktop files have localized keys (Name[fr]=...), keep them, but force base Name=
-          set_kv "Name" "$APP_NAME" "$TARGET"
-          set_kv "Icon" "$APP_ICON" "$TARGET"
-          set_kv "StartupWMClass" "$WMCLASS" "$TARGET"
+          set_kv "Name" "$APP_NAME" "$DESKTOP"
+          set_kv "Icon" "$APP_ICON" "$DESKTOP"
+          set_kv "StartupWMClass" "$WMCLASS" "$DESKTOP"
 
-          echo "Final desktop entry:"
-          cat "$TARGET"
+          echo "After:"
+          cat "$DESKTOP"
 
-          # Rebuild the .deb
           dpkg-deb -b "$WORKDIR" "$DEB"
           rm -rf "$WORKDIR"
 
