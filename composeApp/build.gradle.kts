@@ -93,6 +93,38 @@ android {
     }
 }
 
+tasks.register("renameAndroidArtifacts") {
+    group = "distribution"
+    description = "Rename Android APK/AAB outputs to SoChief.*"
+
+    doLast {
+        val apkDir = file("build/outputs/apk/release")
+        val bundleDir = file("build/outputs/bundle/release")
+
+        apkDir.listFiles()?.filter { it.extension == "apk" }?.forEach { apk ->
+            val target = File(apk.parentFile, "SoChief.apk")
+            if (target.exists()) target.delete()
+            apk.copyTo(target, overwrite = true)
+            println("APK -> ${target.absolutePath}")
+        }
+
+        bundleDir.listFiles()?.filter { it.extension == "aab" }?.forEach { aab ->
+            val target = File(aab.parentFile, "SoChief.aab")
+            if (target.exists()) target.delete()
+            aab.copyTo(target, overwrite = true)
+            println("AAB -> ${target.absolutePath}")
+        }
+    }
+}
+
+// Renomme après build
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    finalizedBy("renameAndroidArtifacts")
+}
+tasks.matching { it.name == "bundleRelease" }.configureEach {
+    finalizedBy("renameAndroidArtifacts")
+}
+
 
 dependencies {
     debugImplementation(libs.compose.uiTooling)
@@ -104,11 +136,9 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "fr.vlegall.sochief"
-            // ✅ version globale pour desktop
+            packageName = "SoChief"
             packageVersion = desktopPackageVersionProp
-
-            // ✅ au cas où, force macOS explicitement
+            
             macOS {
                 packageVersion = desktopPackageVersionProp
                 dmgPackageVersion = desktopPackageVersionProp
