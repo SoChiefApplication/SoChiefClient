@@ -188,29 +188,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
+          
           DEB="$(ls -1 composeApp/build/compose/binaries/main/deb/*.deb | head -n 1)"
           echo "Deb found: $DEB"
-
+          
           WORKDIR="$(mktemp -d)"
           dpkg-deb -R "$DEB" "$WORKDIR"
-
-          DESKTOP="$(find "$WORKDIR" -path "*/usr/share/applications/*.desktop" | head -n 1)"
+          
+          # 1) Le .desktop est packagé dans /opt/... (chez toi)
+          DESKTOP="$(find "$WORKDIR" -path "*/opt/*/lib/*.desktop" | head -n 1)"
           if [ -z "${DESKTOP:-}" ]; then
-            echo "No .desktop found in deb"
-            find "$WORKDIR" -maxdepth 6 -type f -print || true
+            echo "No .desktop found under /opt/*/lib in deb"
+            find "$WORKDIR" -maxdepth 6 -type f -name "*.desktop" -print || true
             exit 1
           fi
-
+          
+          echo "Desktop file: $DESKTOP"
+          
           WMCLASS="fr-vlegall-sochief-client-MainKt"
-
-          echo "Patching desktop file: $DESKTOP"
+          
+          # 2) Ajout/replace StartupWMClass
           if grep -q '^StartupWMClass=' "$DESKTOP"; then
             sed -i "s/^StartupWMClass=.*/StartupWMClass=$WMCLASS/" "$DESKTOP"
           else
             printf "\nStartupWMClass=%s\n" "$WMCLASS" >> "$DESKTOP"
           fi
-
+          
+          # 3) Bonus: installer aussi le .desktop au bon endroit standard
+          #    (important pour que l'app apparaisse bien dans le menu et que GNOME match)
+          mkdir -p "$WORKDIR/usr/share/applications"
+          cp -v "$DESKTOP" "$WORKDIR/usr/share/applications/sochief.desktop"
+          
+          # 4) Rebuild le .deb
           dpkg-deb -b "$WORKDIR" "$DEB"
           rm -rf "$WORKDIR"
 
