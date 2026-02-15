@@ -182,44 +182,78 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat ${{ matrix.task_win }}
 
-      # ✅ Linux only: patch the .deb's .desktop so GNOME dock shows correct icon/name
-      - name: Patch .deb desktop file for GNOME dock (StartupWMClass)
+      # ✅ Linux only: make sure there is ONLY ONE desktop entry, named SoChief, with correct icon + WMClass
+      - name: Patch .deb desktop entry (single app, correct name + icon + StartupWMClass)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          
+
           DEB="$(ls -1 composeApp/build/compose/binaries/main/deb/*.deb | head -n 1)"
           echo "Deb found: $DEB"
-          
+
           WORKDIR="$(mktemp -d)"
           dpkg-deb -R "$DEB" "$WORKDIR"
-          
-          # 1) Le .desktop est packagé dans /opt/... (chez toi)
-          DESKTOP="$(find "$WORKDIR" -path "*/opt/*/lib/*.desktop" | head -n 1)"
-          if [ -z "${DESKTOP:-}" ]; then
-            echo "No .desktop found under /opt/*/lib in deb"
-            find "$WORKDIR" -maxdepth 6 -type f -name "*.desktop" -print || true
+
+          # Find any .desktop in the package (compose can put it under /opt/.../lib or elsewhere)
+          mapfile -t DESKTOPS < <(find "$WORKDIR" -type f -name "*.desktop" -print || true)
+          if [ "${#DESKTOPS[@]}" -eq 0 ]; then
+            echo "No .desktop found inside the deb"
+            find "$WORKDIR" -maxdepth 8 -type f -print | head -n 200 || true
             exit 1
           fi
-          
-          echo "Desktop file: $DESKTOP"
-          
-          WMCLASS="fr-vlegall-sochief-client-MainKt"
-          
-          # 2) Ajout/replace StartupWMClass
-          if grep -q '^StartupWMClass=' "$DESKTOP"; then
-            sed -i "s/^StartupWMClass=.*/StartupWMClass=$WMCLASS/" "$DESKTOP"
-          else
-            printf "\nStartupWMClass=%s\n" "$WMCLASS" >> "$DESKTOP"
+
+          echo "Desktop files found:"
+          printf '%s\n' "${DESKTOPS[@]}"
+
+          # Pick the canonical one (prefer /usr/share/applications if it already exists, else any)
+          CANONICAL=""
+          for f in "${DESKTOPS[@]}"; do
+            if [[ "$f" == *"/usr/share/applications/"* ]]; then
+              CANONICAL="$f"
+              break
+            fi
+          done
+          if [ -z "$CANONICAL" ]; then
+            CANONICAL="${DESKTOPS[0]}"
           fi
-          
-          # 3) Bonus: installer aussi le .desktop au bon endroit standard
-          #    (important pour que l'app apparaisse bien dans le menu et que GNOME match)
+          echo "Canonical desktop: $CANONICAL"
+
+          # Ensure standard location exists and copy canonical there
           mkdir -p "$WORKDIR/usr/share/applications"
-          cp -v "$DESKTOP" "$WORKDIR/usr/share/applications/sochief.desktop"
-          
-          # 4) Rebuild le .deb
+          TARGET="$WORKDIR/usr/share/applications/sochief.desktop"
+          cp -f "$CANONICAL" "$TARGET"
+
+          # Delete ALL other desktop entries in the package to avoid duplicate apps
+          find "$WORKDIR" -type f -name "*.desktop" ! -path "$TARGET" -delete
+
+          # Patch fields: Name, Icon, StartupWMClass
+          # - Name shows as the app label
+          # - Icon should match the icon name installed by Compose (often same as packageName or app name)
+          #   If you already configured linux.iconFile in Gradle, Icon=<appId> is usually correct.
+          APP_NAME="SoChief"
+          APP_ICON="sochief"   # <= must match the icon name installed (usually without extension)
+          WMCLASS="fr-vlegall-sochief-client-MainKt"
+
+          # Helper: set or replace key=value in [Desktop Entry]
+          set_kv() {
+            local key="$1" value="$2" file="$3"
+            if grep -qE "^${key}=" "$file"; then
+              sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+            else
+              printf "\n%s=%s\n" "$key" "$value" >> "$file"
+            fi
+          }
+
+          # Some desktop files have localized keys (Name[fr]=...), keep them, but force base Name=
+          set_kv "Name" "$APP_NAME" "$TARGET"
+          set_kv "Icon" "$APP_ICON" "$TARGET"
+          set_kv "StartupWMClass" "$WMCLASS" "$TARGET"
+
+          echo "Final desktop entry:"
+          cat "$TARGET"
+
+          # Rebuild the .deb
           dpkg-deb -b "$WORKDIR" "$DEB"
           rm -rf "$WORKDIR"
 
