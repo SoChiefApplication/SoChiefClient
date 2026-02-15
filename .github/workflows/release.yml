@@ -81,7 +81,6 @@ jobs:
 
           echo "Using sdkmanager: $SDKMANAGER"
 
-          # IMPORTANT: évite le fail "Broken pipe" (SIGPIPE) avec pipefail
           set +o pipefail
           yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_SDK_ROOT" \
@@ -105,8 +104,6 @@ jobs:
         shell: bash
         run: ./gradlew :composeApp:assembleRelease
 
-      # L'AAB peut casser selon ta config (manifest/versionCode, etc.)
-      # -> on n'empêche PAS la release (on upload juste ce qui existe).
       - name: Build AAB (release)
         continue-on-error: true
         shell: bash
@@ -185,6 +182,38 @@ jobs:
         shell: pwsh
         run: .\gradlew.bat ${{ matrix.task_win }}
 
+      # ✅ Linux only: patch the .deb's .desktop so GNOME dock shows correct icon/name
+      - name: Patch .deb desktop file for GNOME dock (StartupWMClass)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DEB="$(ls -1 composeApp/build/compose/binaries/main/deb/*.deb | head -n 1)"
+          echo "Deb found: $DEB"
+
+          WORKDIR="$(mktemp -d)"
+          dpkg-deb -R "$DEB" "$WORKDIR"
+
+          DESKTOP="$(find "$WORKDIR" -path "*/usr/share/applications/*.desktop" | head -n 1)"
+          if [ -z "${DESKTOP:-}" ]; then
+            echo "No .desktop found in deb"
+            find "$WORKDIR" -maxdepth 6 -type f -print || true
+            exit 1
+          fi
+
+          WMCLASS="fr-vlegall-sochief-client-MainKt"
+
+          echo "Patching desktop file: $DESKTOP"
+          if grep -q '^StartupWMClass=' "$DESKTOP"; then
+            sed -i "s/^StartupWMClass=.*/StartupWMClass=$WMCLASS/" "$DESKTOP"
+          else
+            printf "\nStartupWMClass=%s\n" "$WMCLASS" >> "$DESKTOP"
+          fi
+
+          dpkg-deb -b "$WORKDIR" "$DEB"
+          rm -rf "$WORKDIR"
+
       - name: Collect + rename Desktop output (SoChief.${{ matrix.out_ext }})
         shell: bash
         run: |
@@ -198,7 +227,6 @@ jobs:
             exit 1
           fi
 
-          # On prend le premier (normalement un seul)
           src="${files[0]}"
           cp -v "$src" "dist/desktop/SoChief.${{ matrix.out_ext }}"
 
@@ -228,9 +256,6 @@ jobs:
           echo "Artifacts:"
           find dist -type f -maxdepth 8 -print || true
 
-      # IMPORTANT:
-      # - Pas de "git tag && git push" => évite ton 403 github-actions[bot]
-      # - GitHub va créer le tag côté serveur si absent (via l'API Release)
       - name: Create release and upload assets
         uses: softprops/action-gh-release@v2
         with:
