@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun MainScreen() {
+fun MainScreen(deps: AppDependencies) {
     var showApiTest by remember { mutableStateOf(false) }
 
     Column(
@@ -48,7 +48,7 @@ fun MainScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                ApiTestScreen()
+                ApiTestScreen(deps)
             }
         }
     }

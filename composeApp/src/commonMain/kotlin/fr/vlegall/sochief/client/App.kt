@@ -1,13 +1,11 @@
 package fr.vlegall.sochief.client
 
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.*
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.runtime.Composable
+import fr.vlegall.sochief.client.theme.SoChiefTheme
 
 @Composable
-@Preview
-fun App() {
-    MaterialTheme {
-        MainScreen()
+fun App(deps: AppDependencies) {
+    SoChiefTheme {
+        MainScreen(deps)
     }
 }

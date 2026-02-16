@@ -9,17 +9,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import fr.vlegall.sochief.client.api.*
 import kotlinx.coroutines.launch
 
 @Composable
-fun ApiTestScreen() {
-    var baseUrl by remember { mutableStateOf(fr.vlegall.sochief.client.data.ApiConfig.baseUrl) }
-    var apiKey by remember { mutableStateOf(fr.vlegall.sochief.client.data.ApiConfig.apiKey) }
+fun ApiTestScreen(deps: AppDependencies) {
+    var baseUrl by remember { mutableStateOf("") }
+    var apiKey by remember { mutableStateOf("") }
     var testResult by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
-    val apiService = remember { _root_ide_package_.fr.vlegall.sochief.client.data.RecipeApiService() }
+    val apiService = deps.recipeApiService
+
+    LaunchedEffect(Unit) {
+        deps.loadApiConfig()?.let {
+            baseUrl = it.baseUrl
+            apiKey = it.apiKey
+        }
+    }
+
 
     Column(
         modifier = Modifier
@@ -62,13 +71,21 @@ fun ApiTestScreen() {
 
                 Button(
                     onClick = {
-                        fr.vlegall.sochief.client.data.ApiConfig.setConfiguration(baseUrl, apiKey)
-                        testResult = "Configuration sauvegardée!"
+                        scope.launch {
+                            isLoading = true
+                            try {
+                                deps.saveApiConfig(baseUrl, apiKey)
+                                testResult = "Configuration sauvegardée!"
+                            } catch (e: Exception) {
+                                testResult = "Erreur sauvegarde: ${e.message}"
+                            } finally {
+                                isLoading = false
+                            }
+                        }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Sauvegarder Configuration")
-                }
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isLoading
+                ) { Text("Sauvegarder Configuration") }
             }
         }
 
@@ -140,10 +157,10 @@ fun ApiTestScreen() {
                             scope.launch {
                                 isLoading = true
                                 try {
-                                    val pageable = _root_ide_package_.fr.vlegall.sochief.client.data.Pageable(
+                                    val pageable = Pageable(
                                         page = 0,
                                         size = 10,
-                                        sort = listOf("title")
+                                        sort = listOf("title,asc")
                                     )
                                     val recipes = apiService.searchRecipes(null, null, pageable)
                                     testResult = "Recettes trouvées: ${recipes.totalElements} éléments"
@@ -187,7 +204,7 @@ fun ApiTestScreen() {
                             isLoading = true
                             try {
                                 val newRecipe =
-                                    _root_ide_package_.fr.vlegall.sochief.client.data.RecipeUpsertRequestDto(
+                                    RecipeUpsertRequestDto(
                                         title = "Test Recipe",
                                         description = "A test recipe created from the app",
                                         categoryId = 1,
@@ -196,12 +213,12 @@ fun ApiTestScreen() {
                                         preparationTime = "PT30M",
                                         cookingTime = "PT45M",
                                         ingredients = listOf(
-                                            _root_ide_package_.fr.vlegall.sochief.client.data.RecipeIngredientUpsertDto(
-                                                ingredient = _root_ide_package_.fr.vlegall.sochief.client.data.IdOrNameDto(
+                                            RecipeIngredientUpsertDto(
+                                                ingredient = IdOrNameDto(
                                                     id = 1,
                                                     name = null
                                                 ),
-                                                unit = _root_ide_package_.fr.vlegall.sochief.client.data.IdOrNameDto(
+                                                unit = IdOrNameDto(
                                                     id = 1,
                                                     name = null
                                                 ),
@@ -209,7 +226,7 @@ fun ApiTestScreen() {
                                             )
                                         ),
                                         steps = listOf(
-                                            _root_ide_package_.fr.vlegall.sochief.client.data.RecipeStepUpsertDto(
+                                            RecipeStepUpsertDto(
                                                 description = "Mix ingredients",
                                                 duration = "PT10M",
                                                 position = 1

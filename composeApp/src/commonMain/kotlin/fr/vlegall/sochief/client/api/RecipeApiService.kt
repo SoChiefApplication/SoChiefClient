@@ -1,4 +1,4 @@
-package fr.vlegall.sochief.client.data
+package fr.vlegall.sochief.client.api
 
 import io.ktor.client.*
 import io.ktor.client.call.*
@@ -134,79 +134,86 @@ data class PageRecipeListItemDto(
     val empty: Boolean
 )
 
-class RecipeApiService {
-
-    init {
-        // Charger la configuration au démarrage
-        ApiConfig.loadConfiguration()
-    }
-
-    private val client = HttpClient(CIO) {
-        defaultRequest {
-            url(ApiConfig.baseUrl)
-            header("X-API-KEY", ApiConfig.apiKey)
-        }
+class RecipeApiService(
+    private val configProvider: ApiConfigProvider,
+    private val client: HttpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                prettyPrint = true
-                isLenient = true
-            })
+            json(Json { ignoreUnknownKeys = true; isLenient = true })
         }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 10_000
+        }
+    }
+) {
+    private suspend fun requireConfig(): ApiConfig =
+        configProvider.get() ?: error("API config missing (baseUrl/apiKey)")
+
+    private fun joinUrl(base: String, path: String): String =
+        base.trimEnd('/') + "/" + path.trimStart('/')
+
+    private suspend fun withAuth(builder: HttpRequestBuilder) {
+        val cfg = requireConfig()
+        builder.url(joinUrl(cfg.baseUrl, builder.url.encodedPath))
+        builder.headers.append("X-API-KEY", cfg.apiKey)
     }
 
     suspend fun getRecipeById(id: Long, portions: Int? = null): RecipeDetailDto {
-        return client.get("recipes/$id") {
-            if (portions != null) {
-                parameter("portions", portions)
-            }
+        val cfg = requireConfig()
+        return client.get(joinUrl(cfg.baseUrl, "recipes/$id")) {
+            header("X-API-KEY", cfg.apiKey)
+            if (portions != null) parameter("portions", portions)
         }.body()
     }
 
-    suspend fun updateRecipe(
-        id: Long,
-        recipe: RecipeUpsertRequestDto
-    ): RecipeDetailDto {
-        return client.put("recipes/$id") {
+    suspend fun updateRecipe(id: Long, recipe: RecipeUpsertRequestDto): RecipeDetailDto {
+        val cfg = requireConfig()
+        return client.put(joinUrl(cfg.baseUrl, "recipes/$id")) {
+            header("X-API-KEY", cfg.apiKey)
             contentType(ContentType.Application.Json)
             setBody(recipe)
         }.body()
     }
 
     suspend fun deleteRecipe(id: Long) {
-        client.delete("recipes/$id")
+        val cfg = requireConfig()
+        client.delete(joinUrl(cfg.baseUrl, "recipes/$id")) {
+            header("X-API-KEY", cfg.apiKey)
+        }
     }
 
-    suspend fun searchRecipes(
-        q: String?,
-        categoryId: Long?,
-        pageable: Pageable
-    ): PageRecipeListItemDto {
-        return client.get("recipes") {
-            if (q != null) {
-                parameter("q", q)
-            }
-            if (categoryId != null) {
-                parameter("categoryId", categoryId)
-            }
+    suspend fun searchRecipes(q: String?, categoryId: Long?, pageable: Pageable): PageRecipeListItemDto {
+        val cfg = requireConfig()
+        return client.get(joinUrl(cfg.baseUrl, "recipes")) {
+            header("X-API-KEY", cfg.apiKey)
+            if (q != null) parameter("q", q)
+            if (categoryId != null) parameter("categoryId", categoryId)
             parameter("page", pageable.page)
             parameter("size", pageable.size)
-            parameter("sort", pageable.sort)
+            pageable.sort.forEach { parameter("sort", it) }
         }.body()
     }
 
     suspend fun createRecipe(recipe: RecipeUpsertRequestDto): RecipeDetailDto {
-        return client.post("recipes") {
+        val cfg = requireConfig()
+        return client.post(joinUrl(cfg.baseUrl, "recipes")) {
+            header("X-API-KEY", cfg.apiKey)
             contentType(ContentType.Application.Json)
             setBody(recipe)
         }.body()
     }
 
     suspend fun getRecipeDifficulties(): List<NamedIdDto> {
-        return client.get("recipes/difficulty").body()
+        val cfg = requireConfig()
+        return client.get(joinUrl(cfg.baseUrl, "recipes/difficulty")) {
+            header("X-API-KEY", cfg.apiKey)
+        }.body()
     }
 
     suspend fun getRecipeCategories(): List<NamedIdDto> {
-        return client.get("recipes/category").body()
+        val cfg = requireConfig()
+        return client.get(joinUrl(cfg.baseUrl, "recipes/category")) {
+            header("X-API-KEY", cfg.apiKey)
+        }.body()
     }
 }
