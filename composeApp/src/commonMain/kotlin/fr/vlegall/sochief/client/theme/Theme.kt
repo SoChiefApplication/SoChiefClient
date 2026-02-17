@@ -23,8 +23,8 @@ private val LightColors = lightColorScheme(
     surfaceVariant = Color(0xFFF1F5F9),     // chips inactives / blocs secondaires
     onSurfaceVariant = Color(0xFF334155),
 
-    outline = Color(0xFFE2E8F0),            // bordures (cards, textfields)
-    outlineVariant = Color(0xFFCBD5E1),
+    outline = Color(0xffd1d5dc),            // bordures (cards, textfields)
+    outlineVariant = Color(0xffd1d5dc),
 
     // Accents secondaires (optionnels)
     secondary = Color(0xFF0EA5E9),

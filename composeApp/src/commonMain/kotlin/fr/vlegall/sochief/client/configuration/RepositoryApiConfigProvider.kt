@@ -1,4 +1,4 @@
-package fr.vlegall.sochief.client.api
+package fr.vlegall.sochief.client.configuration
 
 class RepositoryApiConfigProvider(
     private val repo: ApiConfigRepository

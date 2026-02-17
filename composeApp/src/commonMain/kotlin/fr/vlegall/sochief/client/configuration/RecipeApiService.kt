@@ -1,4 +1,4 @@
-package fr.vlegall.sochief.client.api
+package fr.vlegall.sochief.client.configuration
 
 import io.ktor.client.*
 import io.ktor.client.call.*

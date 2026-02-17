@@ -1,7 +1,7 @@
 package fr.vlegall.sochief.client
 
 import android.content.Context
-import fr.vlegall.sochief.client.api.ApiConfigRepository
+import fr.vlegall.sochief.client.configuration.ApiConfigRepository
 import fr.vlegall.sochief.client.data.SecureStore
 
 object AppContainer {

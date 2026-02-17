@@ -19,6 +19,7 @@ contracts = "0.2.5"
 ktor = "3.4.0"
 kotlinx-serialization-json = "1.10.0"
 androidx-security-crypto = "1.1.0"
+composablesIcons = "2.2.1"
 
 [libraries]
 contracts = { module = "fr.vlegall:contracts", version.ref = "contracts" }
@@ -47,6 +48,7 @@ ktor-client-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidx-security-crypto" }
+icons-lucide-cmp = { module = "com.composables:icons-lucide-cmp", version.ref = "composablesIcons" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

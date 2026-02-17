@@ -60,6 +60,8 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.kotlinx.serialization.json)
+
+            implementation(libs.icons.lucide.cmp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -83,14 +85,9 @@ android {
         versionCode = versionCodeProp
         versionName = versionNameProp
     }
-
-    // ✅ IMPORTANT : aide IntelliJ/AGP à reconnaître les dossiers KMP comme des sources Android "main"
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
     sourceSets["main"].res.srcDirs("src/androidMain/res")
     sourceSets["main"].java.srcDirs("src/androidMain/kotlin")
-
-    // optionnel mais souvent utile si tu as des resources communes
-    // sourceSets["main"].resources.srcDirs("src/commonMain/resources")
 
     packaging {
         resources {
@@ -109,7 +106,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // On lit depuis variables d'environnement (CI) OU gradle.properties (local)
             val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
                 ?: (findProperty("ANDROID_KEYSTORE_PATH") as String?)
             val ksPass = System.getenv("ANDROID_KEYSTORE_PASSWORD")

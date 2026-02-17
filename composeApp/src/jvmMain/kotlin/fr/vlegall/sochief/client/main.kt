@@ -1,10 +1,8 @@
 package fr.vlegall.sochief.client
 
-// IMPORTANT : ces imports dépendent du package généré.
-// On ne le devine pas, on l’utilise via auto-import IntelliJ (voir juste après).
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
-import fr.vlegall.sochief.client.api.*
+import fr.vlegall.sochief.client.configuration.AppDependencies
 import fr.vlegall.sochief.client.data.SecureStore
 import org.jetbrains.compose.resources.painterResource
 import sochief.composeapp.generated.resources.Res
@@ -19,21 +17,10 @@ fun main() = application {
 
     val secureStore = SecureStore(
         appDir = appDir,
-        keystorePassword = "sochief".toCharArray() // tu pourras améliorer plus tard
+        keystorePassword = "sochief".toCharArray()
     )
 
-    val repo = ApiConfigRepository(secureStore)
-    val load = LoadApiConfig(repo)
-    val save = SaveApiConfig(repo)
-
-    val provider = RepositoryApiConfigProvider(repo)
-    val apiService = RecipeApiService(provider)
-
-    val deps = AppDependencies(
-        loadApiConfig = load,
-        saveApiConfig = save,
-        recipeApiService = apiService
-    )
+    val deps = AppDependencies(secureStore)
 
     Window(
         onCloseRequest = ::exitApplication,

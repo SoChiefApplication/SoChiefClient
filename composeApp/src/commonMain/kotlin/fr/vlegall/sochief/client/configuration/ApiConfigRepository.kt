@@ -1,4 +1,4 @@
-package fr.vlegall.sochief.client.api
+package fr.vlegall.sochief.client.configuration
 
 import fr.vlegall.sochief.client.data.SecureStore
 
