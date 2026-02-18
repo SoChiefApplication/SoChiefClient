@@ -13,7 +13,7 @@ import fr.vlegall.sochief.client.components.ui.PasswordOutlinedTextField
 import kotlinx.coroutines.launch
 
 @Composable
-fun ApiConfigView(
+fun ApiConfigCard(
     baseUrl: String,
     apiKey: String,
     onBaseUrlChange: (String) -> Unit,

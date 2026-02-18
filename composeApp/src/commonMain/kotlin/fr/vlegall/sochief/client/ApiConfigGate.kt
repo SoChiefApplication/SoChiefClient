@@ -1,7 +1,7 @@
 package fr.vlegall.sochief.client
 
 import androidx.compose.runtime.*
-import fr.vlegall.sochief.client.components.settings.ApiConfigView
+import fr.vlegall.sochief.client.components.settings.ApiConfigCard
 import fr.vlegall.sochief.client.configuration.*
 
 @Composable
@@ -29,7 +29,7 @@ fun ApiConfigGate(
         var draftBaseUrl by remember(persistedConfig) { mutableStateOf(persistedConfig?.baseUrl.orEmpty()) }
         var draftApiKey by remember(persistedConfig) { mutableStateOf(persistedConfig?.apiKey.orEmpty()) }
 
-        ApiConfigView(
+        ApiConfigCard(
             baseUrl = draftBaseUrl,
             apiKey = draftApiKey,
             onBaseUrlChange = { draftBaseUrl = it },
