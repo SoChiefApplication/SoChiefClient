@@ -21,6 +21,14 @@ compose {
 }
 
 kotlin {
+    targets.all {
+        compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions.freeCompilerArgs.add("-Xexpect-actual-classes")
+            }
+        }
+    }
+
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
     }
@@ -31,26 +39,33 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
-            implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.androidx.security.crypto)
+
             implementation(libs.ktor.client.okhttp)
-        }
-        commonMain.dependencies {
-            implementation(libs.contracts)
-            implementation(libs.compose.runtime)
-            implementation(libs.compose.foundation)
-            implementation(libs.compose.material3)
-            implementation(libs.compose.ui)
-            implementation(libs.compose.components.resources)
-            implementation(libs.compose.uiToolingPreview)
+
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
+            implementation(libs.compose.uiTooling)
+            implementation(libs.compose.uiToolingPreview)
+        }
+        commonMain.dependencies {
+            implementation(libs.contracts)
+
+            implementation(compose.runtime)
+            implementation(compose.foundation)
+            implementation(compose.material3)
+            implementation(compose.ui)
+            implementation(compose.components.resources)
+
             implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.cio)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.kotlinx.serialization.json)
+            implementation(libs.ktor.client.cio)
+
+            implementation(libs.icons.lucide.cmp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
@@ -58,6 +73,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+
             implementation(libs.ktor.client.cio)
         }
     }
@@ -74,14 +90,9 @@ android {
         versionCode = versionCodeProp
         versionName = versionNameProp
     }
-
-    // ✅ IMPORTANT : aide IntelliJ/AGP à reconnaître les dossiers KMP comme des sources Android "main"
     sourceSets["main"].manifest.srcFile("src/androidMain/AndroidManifest.xml")
     sourceSets["main"].res.srcDirs("src/androidMain/res")
     sourceSets["main"].java.srcDirs("src/androidMain/kotlin")
-
-    // optionnel mais souvent utile si tu as des resources communes
-    // sourceSets["main"].resources.srcDirs("src/commonMain/resources")
 
     packaging {
         resources {
@@ -100,7 +111,6 @@ android {
 
     signingConfigs {
         create("release") {
-            // On lit depuis variables d'environnement (CI) OU gradle.properties (local)
             val ksPath = System.getenv("ANDROID_KEYSTORE_PATH")
                 ?: (findProperty("ANDROID_KEYSTORE_PATH") as String?)
             val ksPass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
