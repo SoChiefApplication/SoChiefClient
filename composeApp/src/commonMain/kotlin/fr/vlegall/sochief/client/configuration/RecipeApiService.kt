@@ -1,5 +1,9 @@
 package fr.vlegall.sochief.client.configuration
 
+import fr.vlegall.sochief.contracts.common.NamedIdDto
+import fr.vlegall.sochief.contracts.request.RecipeUpsertRequestDto
+import fr.vlegall.sochief.contracts.response.RecipeDetailDto
+import fr.vlegall.sochief.contracts.response.RecipeListItemDto
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -12,94 +16,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class NamedIdDto(
-    val id: Long,
-    val name: String
-)
-
-@Serializable
-data class RecipeIngredientDto(
-    val ingredient: NamedIdDto,
-    val unit: NamedIdDto,
-    val quantity: Double
-)
-
-@Serializable
-data class RecipeStepDto(
-    val id: Long,
-    val description: String,
-    val duration: String,
-    val position: Int
-)
-
-@Serializable
-data class RecipeDetailDto(
-    val id: Long,
-    val title: String,
-    val description: String,
-    val category: NamedIdDto,
-    val difficulty: NamedIdDto,
-    val initialPortions: Int,
-    val displayedPortions: Int,
-    val preparationTime: String,
-    val cookingTime: String,
-    val ingredients: List<RecipeIngredientDto>,
-    val steps: List<RecipeStepDto>,
-    val tags: List<NamedIdDto>,
-    val utensils: List<NamedIdDto>
-)
-
-@Serializable
-data class IdOrNameDto(
-    val id: Long? = null,
-    val name: String? = null
-)
-
-@Serializable
-data class RecipeIngredientUpsertDto(
-    val ingredient: IdOrNameDto,
-    val unit: IdOrNameDto,
-    val quantity: Double
-)
-
-@Serializable
-data class RecipeStepUpsertDto(
-    val description: String,
-    val duration: String,
-    val position: Int
-)
-
-@Serializable
-data class RecipeUpsertRequestDto(
-    val title: String,
-    val description: String,
-    val categoryId: Long,
-    val difficultyId: Long,
-    val initialPortions: Int,
-    val preparationTime: String,
-    val cookingTime: String,
-    val ingredients: List<RecipeIngredientUpsertDto>,
-    val steps: List<RecipeStepUpsertDto>,
-    val tags: List<IdOrNameDto>,
-    val utensils: List<IdOrNameDto>
-)
-
-@Serializable
 data class Pageable(
     val page: Int,
     val size: Int,
     val sort: List<String>
-)
-
-@Serializable
-data class RecipeListItemDto(
-    val id: Long,
-    val title: String,
-    val category: NamedIdDto,
-    val difficulty: NamedIdDto,
-    val initialPortions: Int,
-    val preparationTime: String,
-    val cookingTime: String
 )
 
 @Serializable
@@ -135,7 +55,7 @@ data class PageRecipeListItemDto(
 )
 
 class RecipeApiService(
-    private val configProvider: ApiConfigProvider,
+    private val apiConfigService: ApiConfigService,
     private val client: HttpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; isLenient = true })
@@ -146,13 +66,13 @@ class RecipeApiService(
         }
     }
 ) {
-    private suspend fun requireConfig(): ApiConfig =
-        configProvider.get() ?: error("API config missing (baseUrl/apiKey)")
+    private fun requireConfig(): ApiConfig =
+        apiConfigService.current() ?: error("API config missing (baseUrl/apiKey)")
 
     private fun joinUrl(base: String, path: String): String =
         base.trimEnd('/') + "/" + path.trimStart('/')
 
-    private suspend fun withAuth(builder: HttpRequestBuilder) {
+    private fun withAuth(builder: HttpRequestBuilder) {
         val cfg = requireConfig()
         builder.url(joinUrl(cfg.baseUrl, builder.url.encodedPath))
         builder.headers.append("X-API-KEY", cfg.apiKey)

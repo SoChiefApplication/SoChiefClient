@@ -10,7 +10,3 @@ data class ApiConfig(
 
 fun ApiConfig?.isValid(): Boolean =
     this != null && baseUrl.isNotBlank() && apiKey.isNotBlank()
-
-interface ApiConfigProvider {
-    suspend fun get(): ApiConfig?
-}

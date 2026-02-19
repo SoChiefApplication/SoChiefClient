@@ -15,11 +15,12 @@ junit = "4.13.2"
 kotlin = "2.3.10"
 kotlinx-coroutines = "1.10.2"
 material3 = "1.10.0-alpha05"
-contracts = "0.2.5"
+contracts = "0.3.1"
 ktor = "3.4.0"
 kotlinx-serialization-json = "1.10.0"
 androidx-security-crypto = "1.1.0"
 composablesIcons = "2.2.1"
+androidx-navigation = "2.9.7"
 
 [libraries]
 contracts = { module = "fr.vlegall:contracts", version.ref = "contracts" }
@@ -49,6 +50,7 @@ ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "kto
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization-json" }
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "androidx-security-crypto" }
 icons-lucide-cmp = { module = "com.composables:icons-lucide-cmp", version.ref = "composablesIcons" }
+androidx-navigation = { module = "androidx.navigation:navigation-compose", version.ref = "androidx-navigation" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
