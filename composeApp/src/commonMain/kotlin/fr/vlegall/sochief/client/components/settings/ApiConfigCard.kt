@@ -18,13 +18,14 @@ fun ApiConfigCard(
     apiKey: String,
     onBaseUrlChange: (String) -> Unit,
     onApiKeyChange: (String) -> Unit,
-    onSave: suspend (String, String) -> Unit
+    onSave: suspend (String, String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Text(
