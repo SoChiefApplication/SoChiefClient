@@ -2,6 +2,7 @@ package fr.vlegall.sochief.client.configuration
 
 import fr.vlegall.sochief.contracts.common.NamedIdDto
 import fr.vlegall.sochief.contracts.request.RecipeUpsertRequestDto
+import fr.vlegall.sochief.contracts.response.ApiStatus
 import fr.vlegall.sochief.contracts.response.RecipeDetailDto
 import fr.vlegall.sochief.contracts.response.RecipeListItemDto
 import io.ktor.client.*
@@ -11,9 +12,12 @@ import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import io.ktor.serialization.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.net.ConnectException
+import java.net.UnknownHostException
 
 @Serializable
 data class Pageable(
@@ -56,7 +60,9 @@ data class PageRecipeListItemDto(
 
 class RecipeApiService(
     private val apiConfigService: ApiConfigService,
+    private val overrideConfig: ApiConfig? = null,
     private val client: HttpClient = HttpClient(CIO) {
+        expectSuccess = true
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true; isLenient = true })
         }
@@ -67,7 +73,8 @@ class RecipeApiService(
     }
 ) {
     private fun requireConfig(): ApiConfig =
-        apiConfigService.current() ?: error("API config missing (baseUrl/apiKey)")
+        overrideConfig ?: apiConfigService.current()
+        ?: error("API config missing (baseUrl/apiKey)")
 
     private fun joinUrl(base: String, path: String): String =
         base.trimEnd('/') + "/" + path.trimStart('/')
@@ -135,5 +142,35 @@ class RecipeApiService(
         return client.get(joinUrl(cfg.baseUrl, "recipes/category")) {
             header("X-API-KEY", cfg.apiKey)
         }.body()
+    }
+
+    suspend fun getStatus(): ApiCallResult<ApiStatus> = safeCall {
+        val cfg = requireConfig()
+        client.get(joinUrl(cfg.baseUrl, "status")) {
+            header("X-API-KEY", cfg.apiKey)
+        }.body()
+    }
+
+    private suspend inline fun <T> safeCall(crossinline block: suspend () -> T): ApiCallResult<T> {
+        return try {
+            ApiCallResult.Ok(block())
+        } catch (e: UnknownHostException) {
+            ApiCallResult.NetworkError("Hôte introuvable")
+        } catch (e: ConnectException) {
+            ApiCallResult.NetworkError("Connexion refusée")
+        } catch (e: HttpRequestTimeoutException) {
+            ApiCallResult.NetworkError("Timeout")
+        } catch (e: ClientRequestException) {
+            return when (val code = e.response.status.value) {
+                401, 403 -> ApiCallResult.NeedsReconfigure("Clé API invalide ou non autorisée")
+                else -> ApiCallResult.HttpError(code, "Erreur HTTP $code")
+            }
+        } catch (e: ServerResponseException) {
+            ApiCallResult.HttpError(e.response.status.value, "Erreur serveur (HTTP ${e.response.status.value})")
+        } catch (e: JsonConvertException) {
+            ApiCallResult.UnexpectedError("Réponse serveur invalide (JSON non conforme)")
+        } catch (e: Exception) {
+            ApiCallResult.UnexpectedError("Erreur: ${e::class.simpleName}")
+        }
     }
 }

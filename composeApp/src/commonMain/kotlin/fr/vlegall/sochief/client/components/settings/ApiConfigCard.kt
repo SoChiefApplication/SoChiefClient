@@ -20,6 +20,7 @@ fun ApiConfigCard(
     onApiKeyChange: (String) -> Unit,
     onSave: suspend (String, String) -> Unit,
     modifier: Modifier = Modifier,
+    errorMessage: String? = null,
 ) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -72,6 +73,15 @@ fun ApiConfigCard(
                 }
             )
 
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
             Button(
                 onClick = {
                     scope.launch {
@@ -85,7 +95,9 @@ fun ApiConfigCard(
                 },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isLoading && baseUrl.isNotBlank() && apiKey.isNotBlank()
-            ) { Text("Sauvegarder") }
+            ) {
+                Text(if (isLoading) "Vérification..." else "Sauvegarder")
+            }
         }
     }
 }

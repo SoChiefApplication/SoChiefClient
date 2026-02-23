@@ -37,7 +37,10 @@ fun App(
             )
 
             AppRoute.Configuration -> {
-                ConfigurationView(apiConfigService, nav)
+                ConfigurationView(
+                    apiConfigService,
+                    nav
+                )
             }
         }
     }
