@@ -9,7 +9,7 @@ import fr.vlegall.sochief.client.navigation.AppRoute
 import fr.vlegall.sochief.client.navigation.NavController
 import fr.vlegall.sochief.client.theme.SoChiefTheme
 import fr.vlegall.sochief.client.view.ConfigurationView
-import fr.vlegall.sochief.client.view.MainApp
+import fr.vlegall.sochief.client.view.Home
 import kotlinx.coroutines.launch
 
 @Composable
@@ -26,7 +26,7 @@ fun App(
     SoChiefTheme {
         when (val route = nav.current) {
 
-            AppRoute.Home -> MainApp(
+            AppRoute.Home -> Home(
                 recipeApi = RecipeApiService(apiConfigService),
                 onClearConfig = {
                     scope.launch {

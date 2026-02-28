@@ -4,4 +4,8 @@ import androidx.compose.ui.Modifier
 
 expect object PlatformDimens {
     val configurationCardModifier: Modifier
+
+    val headerModifier: Modifier
+
+    val limitsModifier: Modifier
 }

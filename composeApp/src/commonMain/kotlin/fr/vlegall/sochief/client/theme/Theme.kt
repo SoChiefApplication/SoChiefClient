@@ -10,12 +10,16 @@ import androidx.compose.ui.graphics.Color
 private val LightColors = lightColorScheme(
     primary = Color(0xFFF97316),
     surfaceContainerHighest = Color(0xFFFFFFFF),
+    background = Color(0xF9FAFBFF),
+    surface = Color(0xFFFFFFFF),
 )
 
 
 private val DarkColors = lightColorScheme(
     primary = Color(0xFFF97316),
     surfaceContainerHighest = Color(0xFFFFFFFF),
+    background = Color(0xF9FAFBFF),
+    surface = Color(0xFFFFFFFF),
 )
 
 

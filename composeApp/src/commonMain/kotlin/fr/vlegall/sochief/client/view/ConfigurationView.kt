@@ -38,8 +38,8 @@ fun ConfigurationView(
         modifier = Modifier.fillMaxSize().background(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFFFFF7ED), // orange-50
-                    Color(0xFFFFEDD5)  // orange-100
+                    Color(0xFFFFF7ED),
+                    Color(0xFFFFEDD5)
                 )
             )
         ),
