@@ -24,80 +24,75 @@ fun ApiConfigCard(
 ) {
     var isLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-
-    Card(
+    Column(
         modifier = modifier,
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            modifier = Modifier.padding(16.dp),
             text = "Configuration API",
+            modifier = Modifier.fillMaxWidth()
         )
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = onBaseUrlChange,
-                label = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Lucide.Server,
-                            contentDescription = "Server",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("URL API")
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            PasswordOutlinedTextField(
-                value = apiKey,
-                onValueChange = onApiKeyChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Lucide.Key,
-                            contentDescription = "Key",
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Clé API")
-                    }
-
+        OutlinedTextField(
+            value = baseUrl,
+            onValueChange = onBaseUrlChange,
+            label = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Lucide.Server,
+                        contentDescription = "Server",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("URL API")
                 }
+            },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        PasswordOutlinedTextField(
+            value = apiKey,
+            onValueChange = onApiKeyChange,
+            label = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Lucide.Key,
+                        contentDescription = "Key",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Clé API")
+                }
+
+            },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (!errorMessage.isNullOrBlank()) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.fillMaxWidth()
             )
+        }
 
-            if (!errorMessage.isNullOrBlank()) {
-                Text(
-                    text = errorMessage,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-
-            Button(
-                onClick = {
-                    scope.launch {
-                        isLoading = true
-                        try {
-                            onSave(baseUrl, apiKey)
-                        } finally {
-                            isLoading = false
-                        }
+        Button(
+            onClick = {
+                scope.launch {
+                    isLoading = true
+                    try {
+                        onSave(baseUrl, apiKey)
+                    } finally {
+                        isLoading = false
                     }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isLoading && baseUrl.isNotBlank() && apiKey.isNotBlank()
-            ) {
-                Text(if (isLoading) "Vérification..." else "Sauvegarder")
-            }
+                }
+            },
+            enabled = !isLoading && baseUrl.isNotBlank() && apiKey.isNotBlank(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isLoading) "Vérification..." else "Sauvegarder")
         }
     }
+
 }

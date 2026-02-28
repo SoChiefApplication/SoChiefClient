@@ -15,17 +15,32 @@ actual class SecureStore(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private val prefs by lazy {
+        val fileName = "secure_store"
+
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-        EncryptedSharedPreferences.create(
+        fun create() = EncryptedSharedPreferences.create(
             context,
-            "secure_store",
+            fileName,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
+
+        try {
+            create()
+        } catch (e: javax.crypto.AEADBadTagException) {
+            context.deleteSharedPreferences(fileName) // supprime shared_prefs/secure_store.xml
+            create()
+        } catch (e: java.security.KeyStoreException) {
+            context.deleteSharedPreferences(fileName)
+            create()
+        } catch (e: java.security.GeneralSecurityException) {
+            context.deleteSharedPreferences(fileName)
+            create()
+        }
     }
 
     actual suspend fun <T> getJson(key: String, serializer: KSerializer<T>): T? =
